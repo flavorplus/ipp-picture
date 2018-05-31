@@ -11,7 +11,7 @@ This is a printing service class serving following functions
 # Installing Printing Service
 
 ```
-npm install --save https://github.com/vodaben/c15yo-printing.git
+npm install --save c15yo-printing
 ```
 
 ```js
