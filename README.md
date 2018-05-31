@@ -1,4 +1,4 @@
-# Printing Service
+# Printing Service [![npm](https://img.shields.io/npm/v/c15yo-printing.svg)](https://www.npmjs.com/package/c15yo-printing)
 
 This is a printing service class serving following functions
 
