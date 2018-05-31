@@ -2,7 +2,6 @@
 
 const moment = require('moment');
 const mdns = require('mdns-js');
-const uuidv5 = require('uuid/v5');
 const _ = require('lodash');
 const ipp = require('ipp');
 
