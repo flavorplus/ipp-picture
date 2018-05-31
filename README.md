@@ -116,6 +116,7 @@ IP Address of the printer.
 #### Argument: callback
 
 Type: `function(error, result)`
+
 Arguments:
 `error`: If no error occured, this object will be `undefined`. Otherwise, an `Error` object will be returned.
 `result`: If no error occured, this object will be populated with an `IPP Printer Object`
@@ -152,6 +153,7 @@ Type: `Object`
 #### Argument: callback
 
 Type: `function(error, result)`
+
 Arguments:
 `error`: If no error occured, this object will be `undefined`. Otherwise, an `Error` object will be returned.
 `result`: 
@@ -183,6 +185,7 @@ Job URI. (By decoding the base64 job id. see `printJPEG`=>`callback`.
 #### Argument: callback
 
 Type: `function(error, result)`
+
 Arguments:
 `error`: If no error occured, this object will be `undefined`. Otherwise, an `Error` object will be returned.
 `result`: 
