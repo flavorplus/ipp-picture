@@ -1,6 +1,6 @@
 {
   "name": "c15yo-printing",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Printing Service for printer discovery and print job management.",
   "main": "Printer.class.js",
   "scripts": {
