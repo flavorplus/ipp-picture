@@ -35,9 +35,9 @@ module.exports = class Printer {
 								this.localDiscoveryList[data.addresses[0]].error = err;
 							} else {
 								this.localDiscoveryList[data.addresses[0]].printer = printer;
+								console.log('Found printer. Total: ' + Object.keys(this.localDiscoveryList).length)
 							}
 						})
-						console.log('Found printer. Total: ' + Object.keys(this.localDiscoveryList).length)
 						throw BreakException;
 					}
 				})
