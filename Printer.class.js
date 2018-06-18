@@ -106,4 +106,44 @@ module.exports = class Printer {
 		printer.execute("Print-Job", msg, callback);
 	}
 
+	restart() {
+		console.log("Clearing discovery host")
+		this.localDiscoveryList = {};
+		console.log("Stopping discovery service")
+		this.browser.stop();
+
+		console.log("Restarting discovery")
+		this.browser = mdns.createBrowser();
+		this.browser.on('ready', () => {
+			this.browser.discover()
+		});
+		this.browser.on('update', (data) => {
+			try{
+				data.type.forEach((type) => {
+					if(type.name == 'ipp' || type.name == 'ipps') {
+						if(!this.localDiscoveryList[data.addresses[0]]) {
+							console.log('New Printer: ' + data.addresses[0])
+						} else {
+							console.log('Printer update: ' + data.addresses[0])
+						}
+						this.localDiscoveryList[data.addresses[0]] = {
+							status: 'OK',
+							mdns: data
+						}
+						this.getPrinterAttributes(data.addresses[0], (err, printer) => {
+							if(err) {
+								this.localDiscoveryList[data.addresses[0]].status = 'ERROR';
+								this.localDiscoveryList[data.addresses[0]].error = err;
+							} else {
+								this.localDiscoveryList[data.addresses[0]].printer = printer;
+								console.log('Found printer. Total: ' + Object.keys(this.localDiscoveryList).length)
+							}
+						})
+						throw BreakException;
+					}
+				})
+			}catch(e){ if(e !== BreakException) throw e }
+		});
+	}
+
 }
