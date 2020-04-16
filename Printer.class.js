@@ -129,7 +129,6 @@ module.exports = class Printer {
 
   // Get printer ipp information
   // Argument: ip, callback
-  // Callback: function(err, result)
   getPrinterAttributes () {
     return new Promise((resolve, reject) => {
       if (!this.printer) reject('Printer not set! Call [setPrinter()] first!')
@@ -146,7 +145,6 @@ module.exports = class Printer {
 
   // Get job attributes
   // Argument: ip, job-uri, callback
-  // Callback: function(err, result)
   getJobAttributes (jobUri) {
     return new Promise((resolve, reject) => {
       if (!this.printer) reject('Printer not set! Call [setPrinter()] first!')
