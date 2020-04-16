@@ -1,149 +1,300 @@
-'use strict';
+'use strict'
 
-const moment = require('moment');
-const mdns = require('mdns-js');
-const _ = require('lodash');
-const ipp = require('ipp');
+const mdns = require('mdns')
+// const _ = require('lodash')
+const ipp = require('ipp')
 
-const BreakException = {};
+const sucessStatusCodes = [
+  'successful-ok',
+  'successful-ok-ignored-or-substituted-attributes'
+]
 
 module.exports = class Printer {
+  constructor () {
+    this.printerList = {}
 
-	constructor() {
-		this.localDiscoveryList = {};
+    this.DEBUGnewInstances = 0
 
-		this.browser = mdns.createBrowser();
-		this.browser.on('ready', () => {
-			this.browser.discover()
-		});
-		this.browser.on('update', (data) => {
-			try{
-				data.type.forEach((type) => {
-					if(type.name == 'ipp' || type.name == 'ipps') {
-						if(!this.localDiscoveryList[data.addresses[0]]) {
-							console.log('New Printer: ' + data.addresses[0])
-						} else {
-							console.log('Printer update: ' + data.addresses[0])
-						}
-						this.localDiscoveryList[data.addresses[0]] = {
-							status: 'OK',
-							mdns: data
-						}
-						this.getPrinterAttributes(data.addresses[0], (err, printer) => {
-							if(err) {
-								this.localDiscoveryList[data.addresses[0]].status = 'ERROR';
-								this.localDiscoveryList[data.addresses[0]].error = err;
-							} else {
-								this.localDiscoveryList[data.addresses[0]].printer = printer;
-								console.log('Found printer. Total: ' + Object.keys(this.localDiscoveryList).length)
-							}
-						})
-						throw BreakException;
-					}
-				})
-			}catch(e){ if(e !== BreakException) throw e }
-		});
+    this.printer = {}
 
-		// DEBUG Message
-		console.warn('Printer instance initialized');
+    this.browser = mdns.createBrowser(mdns.tcp('ipp'))
 
-		// DEBUG Printer List
-		// setTimeout(() => {
-		// 	console.log("Printers", this.localDiscoveryList)
-		// }, 3000)
-	}
+    this.browser.on('serviceUp', device => {
+      this._onDeviceAdded(device)
+    })
 
-	// Get printers on local network from discovery result
-	getPrinters() {
-		return this.localDiscoveryList;
-	}
+    this.browser.on('serviceDown', device => {
+      this._onDeviceRemoved(device)
+    })
+  }
 
-	// Get printer mdns and ipp information (from stored value)
-	// Argument: ip
-	getPrinter(ip) {
-		return this.localDiscoveryList[ip];
-	}
+  _onDeviceAdded (device) {
+    this.printerList[device.name] = {
+      name: device.name,
+      status: 'OK',
+      mdns: device
+    }
+    this.printerList[device.name].url = this._getIppUrl(device.name)
+    if (Object.keys(this.printerList).length === 1) {
+      this.setPrinter(device.name)
+    }
 
-	// Get printer ipp information
-	// Argument: ip, callback
-	// Callback: function(err, result)
-	getPrinterAttributes(ip, callback) {
-		let printer = ipp.Printer("ipp://" + ip );
-		printer.execute("Get-Printer-Attributes", null, callback);
-	}
+    this._getSeperatePrinterAttributes(device.name).then(
+      result => {
+        this.printerList[device.name].ipp = result
+      },
+      err => {
+        this.printerList[device.name].status = 'ERROR'
+        this.printerList[device.name].error = err
+      }
+    )
+  }
 
-	// Get job attributes
-	// Argument: ip, job-uri, callback
-	// Callback: function(err, result)
-	getJobAttributes(ip, uri, callback) {
-		let printer = ipp.Printer("ipp://" + ip );
-		let msg = {
-			"operation-attributes-tag": {
-				'job-uri': uri
-			}
-		};
-		printer.execute("Get-Job-Attributes", msg, callback);
-	}
+  _onDeviceRemoved (device) {
+    if (this.printerList[device.name]) {
+      delete this.printerList[device.name]
+    }
+  }
 
-	// Print JPEG
-	// Argument: ip, buffer(JPEG), meta, callback
-	// Callback: function(err, result)
-	printJPEG(ip, buffer, meta, callback) {
-		let printer = ipp.Printer("ipp://" + ip );
-		let msg = {
-			"operation-attributes-tag": {
-				"requesting-user-name": "C15YO-NodePrinter",
-				"job-name": moment().toString() + ".jpg",
-				"document-format": "image/jpeg"
-			},
-			data: buffer
-		};
+  _getIppUrl (name) {
+    const printer = this.printerList[name].mdns
+    return `http://${printer.host}:${printer.port}/${printer.txtRecord.rp}`
+  }
 
-		if(meta["job-attributes-tag"]) {
-			msg["job-attributes-tag"] = meta["job-attributes-tag"];
-		}
+  _getSeperatePrinterAttributes (name) {
+    return new Promise((resolve, reject) => {
+      if (!this.printerList[name].url)
+        reject('Printer not added to the list yet!')
+      this.printer = ipp.Printer(this.printerList[name].url)
+      this.printer.execute('Get-Printer-Attributes', null, (err, data) => {
+        if (err) reject(err)
+        if (!sucessStatusCodes.includes(data.statusCode))
+          reject(
+            `Printer could not process the request! The printer response: ${data.statusCode}`
+          )
+        else resolve(data)
+      })
+    })
+  }
 
-		printer.execute("Print-Job", msg, callback);
-	}
+  startDiscovery () {
+    this.printerList = {}
+    this.browser.start()
+  }
 
-	restart() {
-		console.log("Clearing discovery host")
-		this.localDiscoveryList = {};
-		console.log("Stopping discovery service")
-		this.browser.stop();
+  stopDiscovery () {
+    this.browser.stop()
+    this.printerList = {}
+  }
 
-		console.log("Restarting discovery")
-		this.browser = mdns.createBrowser();
-		this.browser.on('ready', () => {
-			this.browser.discover()
-		});
-		this.browser.on('update', (data) => {
-			try{
-				data.type.forEach((type) => {
-					if(type.name == 'ipp' || type.name == 'ipps') {
-						if(!this.localDiscoveryList[data.addresses[0]]) {
-							console.log('New Printer: ' + data.addresses[0])
-						} else {
-							console.log('Printer update: ' + data.addresses[0])
-						}
-						this.localDiscoveryList[data.addresses[0]] = {
-							status: 'OK',
-							mdns: data
-						}
-						this.getPrinterAttributes(data.addresses[0], (err, printer) => {
-							if(err) {
-								this.localDiscoveryList[data.addresses[0]].status = 'ERROR';
-								this.localDiscoveryList[data.addresses[0]].error = err;
-							} else {
-								this.localDiscoveryList[data.addresses[0]].printer = printer;
-								console.log('Found printer. Total: ' + Object.keys(this.localDiscoveryList).length)
-							}
-						})
-						throw BreakException;
-					}
-				})
-			}catch(e){ if(e !== BreakException) throw e }
-		});
-	}
+  get printerCount () {
+    return Object.keys(this.printerList).length
+  }
 
+  // Get printers on local network from discovery result
+  get list () {
+    return this.printerList
+  }
+
+  setPrinter (name) {
+    this.printer = ipp.Printer(this.printerList[name].url)
+    console.log(`Total printer instaces are: ${this.DEBUGnewInstances++}`)
+    return this.printer
+  }
+
+  getPrinter () {
+    return this.printer
+  }
+
+  // Get printer ipp information
+  // Argument: ip, callback
+  // Callback: function(err, result)
+  getPrinterAttributes () {
+    return new Promise((resolve, reject) => {
+      if (!this.printer) reject('Printer not set! Call [setPrinter()] first!')
+      this.printer.execute('Get-Printer-Attributes', null, (err, data) => {
+        if (err) reject(err)
+        if (!sucessStatusCodes.includes(data.statusCode))
+        reject(
+          `Printer could not process the request! The printer response: ${data.statusCode}`
+        )
+        else resolve(data)
+      })
+    })
+  }
+
+  // Get job attributes
+  // Argument: ip, job-uri, callback
+  // Callback: function(err, result)
+  getJobAttributes (jobUri) {
+    return new Promise((resolve, reject) => {
+      if (!this.printer) reject('Printer not set! Call [setPrinter()] first!')
+
+      const msg = {
+        'operation-attributes-tag': {
+          'job-uri': jobUri
+        }
+      }
+      this.printer.execute('Get-Job-Attributes', msg, (err, data) => {
+        if (err) reject(err)
+        if (!sucessStatusCodes.includes(data.statusCode))
+        reject(
+          `Printer could not process the request! The printer response: ${data.statusCode}`
+        )
+        else resolve(data)
+      })
+    })
+  }
+
+  getIncompleteJobs () {
+    return new Promise((resolve, reject) => {
+      if (!this.printer) reject('Printer not set! Call [setPrinter()] first!')
+
+      const msg = {
+        'operation-attributes-tag': {
+          //use these to view completed jobs...
+          //	"limit": 10,
+          'which-jobs': 'not-completed',
+
+          'requested-attributes': [
+            'job-id',
+            'job-uri',
+            'job-state',
+            'job-state-reasons',
+            'job-name',
+            'job-originating-user-name',
+            'job-media-sheets-completed'
+          ]
+        }
+      }
+      this.printer.execute('Get-Jobs', msg, (err, data) => {
+        if (err) reject(err)
+        if (!sucessStatusCodes.includes(data.statusCode))
+        reject(
+          `Printer could not process the request! The printer response: ${data.statusCode}`
+        )
+        else resolve(data)
+      })
+    })
+  }
+
+  getCompletedJobs () {
+    return new Promise((resolve, reject) => {
+      if (!this.printer) reject('Printer not set! Call [setPrinter()] first!')
+
+      const msg = {
+        'operation-attributes-tag': {
+          //use these to view completed jobs...
+          //	"limit": 10,
+          'which-jobs': 'completed',
+
+          'requested-attributes': [
+            'job-id',
+            'job-uri',
+            'job-state',
+            'job-state-reasons',
+            'job-name',
+            'job-originating-user-name',
+            'job-media-sheets-completed'
+          ]
+        }
+      }
+      this.printer.execute('Get-Jobs', msg, (err, data) => {
+        if (err) reject(err)
+        if (!sucessStatusCodes.includes(data.statusCode))
+        reject(
+          `Printer could not process the request! The printer response: ${data.statusCode}`
+        )
+        else resolve(data)
+      })
+    })
+  }
+
+  cancelJob (jobUri) {
+    return new Promise((resolve, reject) => {
+      if (!this.printer) reject('Printer not set! Call [setPrinter()] first!')
+
+      const msg = {
+        'operation-attributes-tag': {
+          'job-uri': jobUri
+        }
+      }
+      this.printer.execute('Cancel-Job', msg, (err, data) => {
+        if (err) reject(err)
+        if (!sucessStatusCodes.includes(data.statusCode))
+        reject(
+          `Printer could not process the request! The printer response: ${data.statusCode}`
+        )
+        else resolve(data)
+      })
+    })
+  }
+
+  cancelJobs (jobIds = []) {
+    return new Promise((resolve, reject) => {
+      if (!this.printer) reject('Printer not set! Call [setPrinter()] first!')
+
+      const msg = {
+        'operation-attributes-tag': {
+          'job-ids': jobIds
+        }
+      }
+      this.printer.execute('Cancel-Jobs', msg, (err, data) => {
+        if (err) reject(err)
+        if (!sucessStatusCodes.includes(data.statusCode))
+        reject(
+          `Printer could not process the request! The printer response: ${data.statusCode}`
+        )
+        else resolve(data)
+      })
+    })
+  }
+
+  identifyPrinter () {
+    return new Promise((resolve, reject) => {
+      if (!this.printer) reject('Printer not set! Call [setPrinter()] first!')
+
+      this.printer.execute('Identify-Printer', null, (err, data) => {
+        if (err) reject(err)
+        if (!sucessStatusCodes.includes(data.statusCode))
+        reject(
+          `Printer could not process the request! The printer response: ${data.statusCode}`
+        )
+        else resolve(data)
+      })
+    })
+  }
+
+  // Print JPEG
+  // Argument: ip, buffer(JPEG), meta, callback
+  // Callback: function(err, result)
+  printJPEG (buffer, meta = [], fileName) {
+    return new Promise((resolve, reject) => {
+      if (!this.printer) reject('Printer not set! Call [setPrinter()] first!')
+
+      const id = Math.random()
+        .toString(36)
+        .substr(2, 4)
+      const name = fileName ? `${id}-${fileName}.jpg` : `${id}.jpg`
+      const msg = {
+        'operation-attributes-tag': {
+          'requesting-user-name': 'ipp-picture',
+          'job-name': name,
+          'document-format': 'image/jpeg'
+        },
+        data: buffer
+      }
+      if (meta['job-attributes-tag']) {
+        msg['job-attributes-tag'] = meta['job-attributes-tag']
+      }
+      this.printer.execute('Print-Job', msg, (err, data) => {
+        if (err) reject(err)
+        if (!sucessStatusCodes.includes(data.statusCode))
+        reject(
+          `Printer could not process the request! The printer response: ${data.statusCode}`
+        )
+        else resolve(data)
+      })
+    })
+  }
 }

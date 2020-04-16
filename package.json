@@ -1,6 +1,6 @@
 {
-  "name": "c15yo-printing",
-  "version": "1.0.7",
+  "name": "ipp-picture",
+  "version": "0.0.1",
   "description": "Printing Service for printer discovery and print job management.",
   "main": "Printer.class.js",
   "scripts": {
@@ -8,22 +8,19 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/vodaben/c15yo-printing.git"
+    "url": "git+https://github.com/flavorplus/ipp-picture.git"
   },
   "keywords": [
     "printing"
   ],
-  "author": "Ben NG <vodaben@b5.hk> (http://b5.hk)",
+  "author": "Jonathan Vermeulen",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/vodaben/c15yo-printing/issues"
+    "url": "https://github.com/flavorplus/ipp-picture/issues"
   },
-  "homepage": "https://github.com/vodaben/c15yo-printing#readme",
+  "homepage": "https://github.com/flavorplus/ipp-picture#readme",
   "dependencies": {
-    "base-64": "^0.1.0",
     "ipp": "^2.0.1",
-    "lodash": "^4.17.10",
-    "mdns-js": "^1.0.1",
-    "moment": "^2.22.1"
+    "mdns": "^2.5.1"
   }
 }
