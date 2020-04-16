@@ -1,6 +1,6 @@
 {
   "name": "ipp-picture",
-  "version": "0.0.3",
+  "version": "0.1.0",
   "description": "Printing Service for easy printing of JPEG pictures to IPP, IPP Everywhere and most AirPrint printers.",
   "main": "Printer.class.js",
   "scripts": {
