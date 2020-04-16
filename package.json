@@ -4,7 +4,7 @@
   "description": "Printing Service for easy printing of JPEG pictures to IPP, IPP Everywhere and most AirPrint printers.",
   "main": "Printer.class.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\""
   },
   "repository": {
     "type": "git",
