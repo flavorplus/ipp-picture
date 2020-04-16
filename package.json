@@ -1,7 +1,7 @@
 {
   "name": "ipp-picture",
   "version": "0.0.1",
-  "description": "Printing Service for printer discovery and print job management.",
+  "description": "Printing Service for easy printing of JPEG pictures to IPP, IPP Everywhere and most AirPrint printers.",
   "main": "Printer.class.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -11,7 +11,7 @@
     "url": "git+https://github.com/flavorplus/ipp-picture.git"
   },
   "keywords": [
-    "printing"
+    "printing", "AirPrint", "ipp", "jpeg", "picture"
   ],
   "author": "Jonathan Vermeulen",
   "license": "MIT",

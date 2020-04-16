@@ -17,6 +17,8 @@ module.exports = class Printer {
 
     this.printer = {}
 
+    this.printerName = ''
+
     this.browser = mdns.createBrowser(mdns.tcp('ipp'))
 
     this.browser.on('serviceUp', device => {
@@ -31,7 +33,7 @@ module.exports = class Printer {
   _onDeviceAdded (device) {
     this.printerList[device.name] = {
       name: device.name,
-      status: 'OK',
+      status: 'INIT',
       mdns: device
     }
     this.printerList[device.name].url = this._getIppUrl(device.name)
@@ -41,6 +43,7 @@ module.exports = class Printer {
 
     this._getSeperatePrinterAttributes(device.name).then(
       result => {
+        this.printerList[device.name].status = 'READY'
         this.printerList[device.name].ipp = result
       },
       err => {
@@ -53,6 +56,10 @@ module.exports = class Printer {
   _onDeviceRemoved (device) {
     if (this.printerList[device.name]) {
       delete this.printerList[device.name]
+    }
+    if (this.printerName == device.name) {
+      this.printerName = ''
+      this.printer = {}
     }
   }
 
@@ -96,13 +103,27 @@ module.exports = class Printer {
     return this.printerList
   }
 
-  setPrinter (name) {
-    this.printer = ipp.Printer(this.printerList[name].url)
-    console.log(`Total printer instaces are: ${this.DEBUGnewInstances++}`)
-    return this.printer
+  get selected () {
+    if (Object.entries(this.printer).length === 0 && this.printer.constructor === Object){
+      return false
+    } else {
+      return true
+    }
   }
 
-  getPrinter () {
+  get details () {
+    return this.printerList[this.printerName]
+  }
+
+  async getStatus () {
+    const attr = await this.getPrinterAttributes()
+    return attr['printer-attributes-tag']['printer-state']
+  }
+
+  setPrinter (name) {
+    this.printer = ipp.Printer(this.printerList[name].url)
+    this.printerName = name
+    console.log(`Total printer instaces are: ${this.DEBUGnewInstances++}`)
     return this.printer
   }
 
