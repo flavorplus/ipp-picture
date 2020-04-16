@@ -104,7 +104,10 @@ module.exports = class Printer {
   }
 
   get selected () {
-    if (Object.entries(this.printer).length === 0 && this.printer.constructor === Object){
+    if (
+      Object.entries(this.printer).length === 0 &&
+      this.printer.constructor === Object
+    ) {
       return false
     } else {
       return true
@@ -116,8 +119,12 @@ module.exports = class Printer {
   }
 
   async getStatus () {
-    const attr = await this.getPrinterAttributes()
-    return attr['printer-attributes-tag']['printer-state']
+    try {
+      const attr = await this.getPrinterAttributes()
+      return attr['printer-attributes-tag']['printer-state']
+    } catch(err){
+      throw err
+    }
   }
 
   setPrinter (name) {
@@ -135,9 +142,9 @@ module.exports = class Printer {
       this.printer.execute('Get-Printer-Attributes', null, (err, data) => {
         if (err) reject(err)
         if (!sucessStatusCodes.includes(data.statusCode))
-        reject(
-          `Printer could not process the request! The printer response: ${data.statusCode}`
-        )
+          reject(
+            `Printer could not process the request! The printer response: ${data.statusCode}`
+          )
         else resolve(data)
       })
     })
@@ -157,9 +164,9 @@ module.exports = class Printer {
       this.printer.execute('Get-Job-Attributes', msg, (err, data) => {
         if (err) reject(err)
         if (!sucessStatusCodes.includes(data.statusCode))
-        reject(
-          `Printer could not process the request! The printer response: ${data.statusCode}`
-        )
+          reject(
+            `Printer could not process the request! The printer response: ${data.statusCode}`
+          )
         else resolve(data)
       })
     })
@@ -189,9 +196,9 @@ module.exports = class Printer {
       this.printer.execute('Get-Jobs', msg, (err, data) => {
         if (err) reject(err)
         if (!sucessStatusCodes.includes(data.statusCode))
-        reject(
-          `Printer could not process the request! The printer response: ${data.statusCode}`
-        )
+          reject(
+            `Printer could not process the request! The printer response: ${data.statusCode}`
+          )
         else resolve(data)
       })
     })
@@ -221,9 +228,9 @@ module.exports = class Printer {
       this.printer.execute('Get-Jobs', msg, (err, data) => {
         if (err) reject(err)
         if (!sucessStatusCodes.includes(data.statusCode))
-        reject(
-          `Printer could not process the request! The printer response: ${data.statusCode}`
-        )
+          reject(
+            `Printer could not process the request! The printer response: ${data.statusCode}`
+          )
         else resolve(data)
       })
     })
@@ -241,9 +248,9 @@ module.exports = class Printer {
       this.printer.execute('Cancel-Job', msg, (err, data) => {
         if (err) reject(err)
         if (!sucessStatusCodes.includes(data.statusCode))
-        reject(
-          `Printer could not process the request! The printer response: ${data.statusCode}`
-        )
+          reject(
+            `Printer could not process the request! The printer response: ${data.statusCode}`
+          )
         else resolve(data)
       })
     })
@@ -261,9 +268,9 @@ module.exports = class Printer {
       this.printer.execute('Cancel-Jobs', msg, (err, data) => {
         if (err) reject(err)
         if (!sucessStatusCodes.includes(data.statusCode))
-        reject(
-          `Printer could not process the request! The printer response: ${data.statusCode}`
-        )
+          reject(
+            `Printer could not process the request! The printer response: ${data.statusCode}`
+          )
         else resolve(data)
       })
     })
@@ -276,9 +283,9 @@ module.exports = class Printer {
       this.printer.execute('Identify-Printer', null, (err, data) => {
         if (err) reject(err)
         if (!sucessStatusCodes.includes(data.statusCode))
-        reject(
-          `Printer could not process the request! The printer response: ${data.statusCode}`
-        )
+          reject(
+            `Printer could not process the request! The printer response: ${data.statusCode}`
+          )
         else resolve(data)
       })
     })
@@ -309,9 +316,9 @@ module.exports = class Printer {
       this.printer.execute('Print-Job', msg, (err, data) => {
         if (err) reject(err)
         if (!sucessStatusCodes.includes(data.statusCode))
-        reject(
-          `Printer could not process the request! The printer response: ${data.statusCode}`
-        )
+          reject(
+            `Printer could not process the request! The printer response: ${data.statusCode}`
+          )
         else resolve(data)
       })
     })
