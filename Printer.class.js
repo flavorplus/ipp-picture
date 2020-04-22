@@ -3,7 +3,7 @@
 const mdns = require('mdns')
 const ipp = require('ipp')
 
-const sucessStatusCodes = [
+const successStatusCodes = [
   'successful-ok',
   'successful-ok-ignored-or-substituted-attributes'
 ]
@@ -21,9 +21,9 @@ module.exports = class Printer {
   constructor () {
     this.printerList = {}
 
-    this.printer = {}
+    this.printer = null
 
-    this.printerName = ''
+    this.printerName = null
 
     this.browser = mdns.createBrowser(mdns.tcp('ipp'))
 
@@ -41,16 +41,16 @@ module.exports = class Printer {
         mdns: device
       }
     }
-    if (!this.printerList[device.name].hasOwnProperty('ipp')) {
+    if (!'ipp' in this.printerList[device.name]) {
       this._getSeperatePrinterAttributes(device.name).then(
         result => {
           this.printerList[device.name].status =
-            result['printer-attributes-tag']['printer-state'];
-          this.printerList[device.name].ipp = result;
+            result['printer-attributes-tag']['printer-state']
+          this.printerList[device.name].ipp = result
         },
         err => {
-          this.printerList[device.name].status = 'ERROR';
-          this.printerList[device.name].error = err;
+          this.printerList[device.name].status = 'ERROR'
+          this.printerList[device.name].error = err
         }
       )
     }
@@ -61,24 +61,51 @@ module.exports = class Printer {
 
   _getSeperatePrinterAttributes (name) {
     return new Promise((resolve, reject) => {
-      if (!this.printerList[name].url)
+      if (!this.printerList[name].url) {
         reject(new Error('Printer not added to the list yet!'))
-      const tempPrinter = ipp.Printer(this.printerList[name].url)
-      tempPrinter.execute('Get-Printer-Attributes', null, (err, data) => {
-        if (err) reject(err)
-        if (!sucessStatusCodes.includes(data.statusCode))
-          reject(
-            `Printer could not process the request! The printer response: ${data.statusCode}`
-          )
-        else resolve(data)
-      })
+      } else {
+        const tempPrinter = ipp.Printer(this.printerList[name].url)
+        tempPrinter.execute('Get-Printer-Attributes', null, (err, data) => {
+          if (err) {
+            reject(err)
+          } else if (!successStatusCodes.includes(data.statusCode)) {
+            reject(
+              `Printer could not process the request! The printer response: ${data.statusCode}`
+            )
+          } else resolve(data)
+        })
+      }
     })
   }
+
+  _executePrinterCommand (command, data) {
+    return new Promise((resolve, reject) => {
+      if (!this.selected) {
+        reject(new Error('Printer not set! Call [setPrinter()] first!'))
+      } else {
+        this.printer.execute(command, data, (err, data) => {
+          if (err) {
+            reject(err)
+          } else if (!successStatusCodes.includes(data.statusCode)) {
+            reject(
+              new Error(
+                `Printer could not process the request! The printer response: ${data.statusCode}`
+              )
+            )
+          } else {
+            resolve(data)
+          }
+        })
+      }
+    })
+  }
+
   /**
    * Start auto discovery of printers and filling the printer list printer
    */
   startDiscovery () {
     this.printerList = {}
+    this.printer = null
     this.browser.start()
   }
 
@@ -87,6 +114,7 @@ module.exports = class Printer {
    */
   stopDiscovery () {
     this.browser.stop()
+    this.printer = null
     this.printerList = {}
   }
 
@@ -103,13 +131,10 @@ module.exports = class Printer {
    * @readonly
    */
   get selected () {
-    if (
-      Object.entries(this.printer).length === 0 &&
-      this.printer.constructor === Object
-    ) {
-      return false
-    } else {
+    if (this.printer !== null) {
       return true
+    } else {
+      return false
     }
   }
 
@@ -129,10 +154,11 @@ module.exports = class Printer {
   setPrinter (name) {
     if (!this.printerList[name].url) {
       throw new Error('Printer not found or not added to the list yet!')
+    } else {
+      this.printer = ipp.Printer(this.printerList[name].url)
+      this.printerName = name
+      return this.printer
     }
-    this.printer = ipp.Printer(this.printerList[name].url)
-    this.printerName = name
-    return this.printer
   }
 
   /**
@@ -140,33 +166,22 @@ module.exports = class Printer {
    * @returns {string} The printer status
    */
   async getPrinterStatus () {
-    try {
-      const attr = await this.getPrinterAttributes()
-      return attr['printer-attributes-tag']['printer-state']
-    } catch (err) {
-      throw err
-    }
+    const {
+      'printer-attributes-tag': { 'printer-state': state }
+    } = await this._executePrinterCommand('Get-Printer-Attributes', null)
+    return state
   }
 
   /**
    * Get printer ipp information
    * @returns {Promise<IppResponse>} Promise object represents the ipp response data
    */
-  getPrinterAttributes () {
-    return new Promise((resolve, reject) => {
-      if (!this.selected)
-        reject(new Error('Printer not set! Call [setPrinter()] first!'))
-      this.printer.execute('Get-Printer-Attributes', null, (err, data) => {
-        if (err) reject(err)
-        if (!sucessStatusCodes.includes(data.statusCode))
-          reject(
-            new Error(
-              `Printer could not process the request! The printer response: ${data.statusCode}`
-            )
-          )
-        else resolve(data)
-      })
-    })
+  async getPrinterAttributes () {
+    const result = await this._executePrinterCommand(
+      'Get-Printer-Attributes',
+      null
+    )
+    return result
   }
 
   /**
@@ -174,104 +189,68 @@ module.exports = class Printer {
    * @param {string} jobUri The URI of the job to get the details on
    * @returns {Promise<IppResponse>} Promise object represents the ipp response data
    */
-  getJobAttributes (jobUri) {
-    return new Promise((resolve, reject) => {
-      if (!this.selected)
-        reject(new Error('Printer not set! Call [setPrinter()] first!'))
+  async getJobAttributes (jobUri) {
+    if (!jobUri) {
+      throw new Error('No jobUri provided. We need one to get the details!')
+    }
 
-      if (!jobUri)
-        reject(new Error('No jobUri provided. We need one to get the details!'))
-
-      const msg = {
-        'operation-attributes-tag': {
-          'job-uri': jobUri
-        }
+    const msg = {
+      'operation-attributes-tag': {
+        'job-uri': jobUri
       }
-      this.printer.execute('Get-Job-Attributes', msg, (err, data) => {
-        if (err) reject(err)
-        if (!sucessStatusCodes.includes(data.statusCode))
-          reject(
-            new Error(
-              `Printer could not process the request! The printer response: ${data.statusCode}`
-            )
-          )
-        else resolve(data)
-      })
-    })
+    }
+    const result = await this._executePrinterCommand('Get-Job-Attributes', msg)
+    return result
   }
 
   /**
    * Get a list of jobs that are still in progress on the printer
    * @returns {Promise<IppResponse>} Promise object represents the ipp response data
    */
-  getIncompleteJobs () {
-    return new Promise((resolve, reject) => {
-      if (!this.selected)
-        reject(new Error('Printer not set! Call [setPrinter()] first!'))
+  async getIncompleteJobs () {
+    const msg = {
+      'operation-attributes-tag': {
+        'which-jobs': 'not-completed',
 
-      const msg = {
-        'operation-attributes-tag': {
-          'which-jobs': 'not-completed',
-
-          'requested-attributes': [
-            'job-id',
-            'job-uri',
-            'job-state',
-            'job-state-reasons',
-            'job-name',
-            'job-originating-user-name',
-            'job-media-sheets-completed'
-          ]
-        }
+        'requested-attributes': [
+          'job-id',
+          'job-uri',
+          'job-state',
+          'job-state-reasons',
+          'job-name',
+          'job-originating-user-name',
+          'job-media-sheets-completed'
+        ]
       }
-      this.printer.execute('Get-Jobs', msg, (err, data) => {
-        if (err) reject(err)
-        if (!sucessStatusCodes.includes(data.statusCode))
-          reject(
-            new Error(
-              `Printer could not process the request! The printer response: ${data.statusCode}`
-            )
-          )
-        else resolve(data)
-      })
-    })
+    }
+
+    const result = await this._executePrinterCommand('Get-Jobs', msg)
+    return result
   }
 
   /**
    * Get a list of jobs that are done printing or canceled but not active anymore
    * @returns {Promise<IppResponse>} Promise object represents the ipp response data
    */
-  getCompletedJobs () {
-    return new Promise((resolve, reject) => {
-      if (!this.selected)
-        reject(new Error('Printer not set! Call [setPrinter()] first!'))
+  async getCompletedJobs () {
+    const msg = {
+      'operation-attributes-tag': {
+        'which-jobs': 'completed',
 
-      const msg = {
-        'operation-attributes-tag': {
-          'which-jobs': 'completed',
-
-          'requested-attributes': [
-            'job-id',
-            'job-uri',
-            'job-state',
-            'job-state-reasons',
-            'job-name',
-            'job-originating-user-name',
-            'job-media-sheets-completed'
-          ]
-        }
+        'requested-attributes': [
+          'job-id',
+          'job-uri',
+          'job-state',
+          'job-state-reasons',
+          'job-name',
+          'job-originating-user-name',
+          'job-media-sheets-completed'
+        ]
       }
-      this.printer.execute('Get-Jobs', msg, (err, data) => {
-        if (err) reject(err)
-        if (!sucessStatusCodes.includes(data.statusCode))
-          reject(
-            new Error(
-              `Printer could not process the request! The printer response: ${data.statusCode}`
-            )
-          )
-        else resolve(data)
-      })
-    })
+    }
+
+    const result = await this._executePrinterCommand('Get-Jobs', msg)
+    return result
   }
 
   /**
@@ -279,29 +258,19 @@ module.exports = class Printer {
    * @param {string} jobUri The URI of the job to cancel
    * @returns {Promise<IppResponse>} Promise object represents the ipp response data
    */
-  cancelJob (jobUri) {
-    return new Promise((resolve, reject) => {
-      if (!this.selected)
-        reject(new Error('Printer not set! Call [setPrinter()] first!'))
-      if (!jobUri)
-        reject(new Error('No jobUri provided. We need one to get the details!'))
+  async cancelJob (jobUri) {
+    if (!jobUri) {
+      throw new Error('No jobUri provided. We need one to get the details!')
+    }
 
-      const msg = {
-        'operation-attributes-tag': {
-          'job-uri': jobUri
-        }
+    const msg = {
+      'operation-attributes-tag': {
+        'job-uri': jobUri
       }
-      this.printer.execute('Cancel-Job', msg, (err, data) => {
-        if (err) reject(err)
-        if (!sucessStatusCodes.includes(data.statusCode))
-          reject(
-            new Error(
-              `Printer could not process the request! The printer response: ${data.statusCode}`
-            )
-          )
-        else resolve(data)
-      })
-    })
+    }
+
+    const result = await this._executePrinterCommand('Cancel-Job', msg)
+    return result
   }
 
   /**
@@ -309,49 +278,24 @@ module.exports = class Printer {
    * @param {number[]} [jobIds] The list of job ID's to cancel
    * @returns {Promise<IppResponse>} Promise object represents the ipp response data
    */
-  cancelJobs (jobIds = []) {
-    return new Promise((resolve, reject) => {
-      if (!this.selected)
-        reject(new Error('Printer not set! Call [setPrinter()] first!'))
-
-      const msg = {
-        'operation-attributes-tag': {
-          'job-ids': jobIds
-        }
+  async cancelJobs (jobIds = []) {
+    const msg = {
+      'operation-attributes-tag': {
+        'job-ids': jobIds
       }
-      this.printer.execute('Cancel-Jobs', msg, (err, data) => {
-        if (err) reject(err)
-        if (!sucessStatusCodes.includes(data.statusCode))
-          reject(
-            new Error(
-              `Printer could not process the request! The printer response: ${data.statusCode}`
-            )
-          )
-        else resolve(data)
-      })
-    })
+    }
+
+    const result = await this._executePrinterCommand('Cancel-Jobs', msg)
+    return result
   }
 
   /**
    * Trigger something on the printer to identify it (led, buzzer, screen etc.)
    * @returns {Promise<IppResponse>} Promise object represents the ipp response data
    */
-  identifyPrinter () {
-    return new Promise((resolve, reject) => {
-      if (!this.selected)
-        reject(new Error('Printer not set! Call [setPrinter()] first!'))
-
-      this.printer.execute('Identify-Printer', null, (err, data) => {
-        if (err) reject(err)
-        if (!sucessStatusCodes.includes(data.statusCode))
-          reject(
-            new Error(
-              `Printer could not process the request! The printer response: ${data.statusCode}`
-            )
-          )
-        else resolve(data)
-      })
-    })
+  async identifyPrinter () {
+    const result = await this._executePrinterCommand('Identify-Printer', null)
+    return result
   }
 
   /**
@@ -361,39 +305,27 @@ module.exports = class Printer {
    * @param {string} [fileName] The file name of the job, defaults to a ranmdom ID
    * @returns {Promise<IppResponse>} Promise object represents the ipp response data
    */
-  printJPEG (buffer, meta = {}, fileName) {
-    return new Promise((resolve, reject) => {
-      if (!this.selected)
-        reject(new Error('Printer not set! Call [setPrinter()] first!'))
+  async printJPEG (buffer, meta = {}, fileName) {
+    if (!Buffer.isBuffer(buffer)) {
+      throw new Error('Data buffer not specified or empty!')
+    }
 
-      if (!Buffer.isBuffer(buffer))
-        reject(new Error('Data buffer not specified or empty!'))
+    const id = Math.random()
+      .toString(36)
+      .substr(2, 4)
+    const msg = {
+      'operation-attributes-tag': {
+        'requesting-user-name': 'ipp-picture',
+        'job-name': fileName ? `${id}-${fileName}.jpg` : `${id}.jpg`,
+        'document-format': 'image/jpeg'
+      },
+      data: buffer
+    }
+    if (meta['job-attributes-tag']) {
+      msg['job-attributes-tag'] = meta['job-attributes-tag']
+    }
 
-      const id = Math.random()
-        .toString(36)
-        .substr(2, 4)
-      const name = fileName ? `${id}-${fileName}.jpg` : `${id}.jpg`
-      const msg = {
-        'operation-attributes-tag': {
-          'requesting-user-name': 'ipp-picture',
-          'job-name': name,
-          'document-format': 'image/jpeg'
-        },
-        data: buffer
-      }
-      if (meta['job-attributes-tag']) {
-        msg['job-attributes-tag'] = meta['job-attributes-tag']
-      }
-      this.printer.execute('Print-Job', msg, (err, data) => {
-        if (err) reject(err)
-        if (!sucessStatusCodes.includes(data.statusCode))
-          reject(
-            new Error(
-              `Printer could not process the request! The printer response: ${data.statusCode}`
-            )
-          )
-        else resolve(data)
-      })
-    })
+    const result = await this._executePrinterCommand('Print-Job', msg)
+    return result
   }
 }
