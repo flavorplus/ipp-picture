@@ -163,7 +163,7 @@ module.exports = class Printer {
 
   /**
    * Set the printer to use for the rest of the library
-   * @returns {string} The printer status
+   * @returns {Promise<string>} The printer status
    */
   async getPrinterStatus () {
     const {
